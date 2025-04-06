@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.classfile.*;
 import java.lang.classfile.attribute.CodeAttribute;
 import java.lang.classfile.attribute.RuntimeVisibleAnnotationsAttribute;
+import java.lang.classfile.attribute.LocalVariableTableAttribute;
 import java.lang.classfile.constantpool.*;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.DynamicConstantDesc;
@@ -141,6 +142,40 @@ public class ClassFileOperator {
                     System.out.println("字节码指令:");
                     code.forEach(instruction -> 
                         System.out.printf("  %s%n", instruction.toString()));
+                });
+        }
+    }
+
+    /**
+     * 分析方法的本地变量表
+     * @param classFilePath 类文件的路径
+     * @throws IOException 如果文件读取失败
+     */
+    public void analyzeMethodLocalVariables(Path classFilePath) throws IOException {
+        byte[] classBytes = Files.readAllBytes(classFilePath);
+        ClassModel classModel = ClassFile.of().parse(classBytes);
+
+        System.out.println("\n方法本地变量表分析:");
+        for (MethodModel method : classModel.methods()) {
+            System.out.printf("\n方法: %s%n", method.methodName().stringValue());
+
+            method.attributes().stream()
+                .filter(attr -> attr instanceof CodeAttribute)
+                .map(attr -> (CodeAttribute) attr)
+                .findFirst()
+                .ifPresent(code -> {
+                    System.out.println("本地变量:");
+                    code.attributes().forEach(attr -> {
+                        if (attr instanceof LocalVariableTableAttribute lvt) {
+                            lvt.localVariables().forEach(localVar ->
+                                System.out.printf("  - %s %s (范围: %d-%d, 槽位: %d)%n",
+                                    localVar.type().stringValue(),
+                                    localVar.name().stringValue(),
+                                    localVar.startPc(),
+                                    localVar.startPc() + localVar.length(),
+                                    localVar.slot()));
+                        }
+                    });
                 });
         }
     }
@@ -484,5 +519,61 @@ public class ClassFileOperator {
      */
     public void createSimpleClass(Path classFilePath, String className) throws IOException {
         createNewClass(classFilePath, className, true, null, null);
+    }
+
+    /**
+     * 分析类的依赖关系
+     * @param classFilePath 类文件的路径
+     * @throws IOException 如果文件读取失败
+     */
+    public void analyzeDependencies(Path classFilePath) throws IOException {
+        byte[] classBytes = Files.readAllBytes(classFilePath);
+        ClassModel classModel = ClassFile.of().parse(classBytes);
+        
+        System.out.println("\n类依赖关系分析:");
+        
+        // 1. 父类依赖
+        classModel.superclass().ifPresent(superClass -> 
+            System.out.printf("父类: %s%n", superClass.asInternalName()));
+        
+        // 2. 接口依赖
+        System.out.println("实现的接口:");
+        classModel.interfaces().forEach(iface -> 
+            System.out.printf("- %s%n", iface.asInternalName()));
+        
+        // 3. 字段类型依赖
+        System.out.println("\n字段类型依赖:");
+        classModel.fields().forEach(field -> 
+            System.out.printf("- %s%n", field.fieldType().stringValue()));
+        
+        // 4. 方法签名依赖
+        System.out.println("\n方法签名依赖:");
+        classModel.methods().forEach(method -> {
+            MethodTypeDesc methodType = MethodTypeDesc.ofDescriptor(method.methodType().stringValue());
+            System.out.printf("- 方法: %s%n", method.methodName().stringValue());
+            System.out.printf("  返回类型: %s%n", methodType.returnType().displayName());
+            System.out.printf("  参数类型: %s%n", 
+                String.join(", ", methodType.parameterList().stream()
+                    .map(ClassDesc::displayName)
+                    .toList()));
+        });
+        
+        // 5. 常量池中的类引用
+        System.out.println("\n常量池中的类引用:");
+        try {
+            ConstantPool cp = classModel.constantPool();
+            for (int i = 1; i < cp.size(); i++) {
+                try {
+                    var entry = cp.entryByIndex(i);
+                    if (entry instanceof ClassEntry classEntry) {
+                        System.out.printf("#%d = %s%n", i, classEntry.asInternalName());
+                    }
+                } catch (Exception e) {
+                    // 忽略无法访问的常量池项
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("分析常量池时发生错误: " + e.getMessage());
+        }
     }
 }

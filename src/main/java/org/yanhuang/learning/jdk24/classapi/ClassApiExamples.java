@@ -20,6 +20,7 @@ public class ClassApiExamples {
             System.out.println("正在分析类文件: " + classFilePath);
             System.out.println("----------------------------------------");
             
+            
             // 创建ClassFileOperator实例
             ClassFileOperator operator = new ClassFileOperator();
             
@@ -46,6 +47,10 @@ public class ClassApiExamples {
             // 6. 分析访问标志
             System.out.println("\n6. 分析访问标志");
             operator.analyzeAccessFlags(classFilePath);
+            
+            // 11. 分析方法本地变量表
+            System.out.println("\n11. 分析方法本地变量表");
+            operator.analyzeMethodLocalVariables(classFilePath);
             
             // 创建一个临时类文件用于修改测试
             String tempClassName = "ModifiedTestClass";
@@ -86,8 +91,8 @@ public class ClassApiExamples {
             // 10. 修改访问标志
             System.out.println("\n10. 修改访问标志");
             operator.modifyAccessFlags(tempClassPath, ClassFile.ACC_PUBLIC | ClassFile.ACC_FINAL);
-            
         } catch (Exception e) {
+            // 处理异常
             System.err.println("分析类文件时发生错误:");
             e.printStackTrace();
         }
